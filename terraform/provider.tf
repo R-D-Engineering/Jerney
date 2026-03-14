@@ -15,7 +15,7 @@ terraform {
     region         = "us-east-1"
     dynamodb_table = "jerney-tf-lock"
     encrypt        = true
-   }
+  }
 }
 
 provider "aws" {
