@@ -33,6 +33,29 @@ data:
   POSTGRES_DB: amVybmV5X2Ri
 
 ---
+# ---- GHCR Image Pull Secret ----
+# Used by backend and frontend deployments to pull images from
+# GitHub Container Registry (ghcr.io).
+# Regenerate .dockerconfigjson if the PAT is rotated:
+#   kubectl create secret docker-registry ghcr-pull-secret \
+#     --docker-server=ghcr.io \
+#     --docker-username=<github-user> \
+#     --docker-password=<PAT> \
+#     --docker-email=<email> \
+#     --namespace=jerney --dry-run=client -o yaml
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ghcr-pull-secret
+  namespace: jerney
+  labels:
+    app.kubernetes.io/part-of: jerney
+type: kubernetes.io/dockerconfigjson
+data:
+  .dockerconfigjson: eyJhdXRocyI6eyJnaGNyLmlvIjp7InVzZXJuYW1lIjoiYW5vb3BmaXJlZm94IiwicGFzc3dvcmQiOiJnaHBfdE14b0xpa0pVelYzczVTZllSMGdLYUo2aDBWQ0ljM1lZM1JZIiwiZW1haWwiOiJhbm9vcC50ZWNoc3Rvcm1AZ21haWwuY29tIiwiYXV0aCI6IllXNXZiM0JtYVhKbFptOTRPbWRvY0Y5MFRYaHZUR2xyU2xWNlZqTnpOVk5tV1ZJd1owdGhTalpvTUZaRFNXTXpXVmt6VWxrPSJ9fX0=
+
+---
 # ---- EBS StorageClass (gp3) ----
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
@@ -181,6 +204,8 @@ spec:
         app.kubernetes.io/component: backend
     spec:
       automountServiceAccountToken: false
+      imagePullSecrets:
+        - name: ghcr-pull-secret
       tolerations:
         - key: "karpenter.sh/disrupted"
           operator: "Exists"
@@ -301,6 +326,8 @@ spec:
         app.kubernetes.io/component: frontend
     spec:
       automountServiceAccountToken: false
+      imagePullSecrets:
+        - name: ghcr-pull-secret
       tolerations:
         - key: "karpenter.sh/disrupted"
           operator: "Exists"
@@ -405,4 +432,3 @@ spec:
       ports:
         - port: 5000
           protocol: TCP
-          
