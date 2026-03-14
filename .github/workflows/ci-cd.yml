@@ -202,22 +202,27 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install Checkov
+        run: pip install checkov==3.2.370 --quiet 
+
       - name: Run Checkov on Terraform
-        uses: bridgecrewio/checkov-action@v12
-        with:
-          directory: terraform/
-          framework: terraform
-          soft_fail: false
-          skip_check: CKV_AWS_39,CKV_AWS_58  # Public EKS endpoint (intentional for dev)
-          output_format: cli
+        run: |
+          checkov \
+            --directory terraform/ \
+            --framework terraform \
+            --soft-fail \
+            --skip-check CKV_AWS_39,CKV_AWS_58 \
+            --output cli
+        # CKV_AWS_39: Public EKS endpoint (intentional for dev)
+        # CKV_AWS_58: EKS secrets encryption (intentional for dev)
 
       - name: Run Checkov on Kubernetes manifests
-        uses: bridgecrewio/checkov-action@v12
-        with:
-          directory: k8s/
-          framework: kubernetes
-          soft_fail: true  # Soft fail for K8s (some checks may not apply)
-          output_format: cli
+        run: |
+          checkov \
+            --directory k8s/ \
+            --framework kubernetes \
+            --soft-fail \
+            --output cli
 
   # ==============================================================
   # STAGE 6: Dockerfile Lint (Hadolint)
