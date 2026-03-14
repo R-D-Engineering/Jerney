@@ -221,14 +221,15 @@ jobs:
   update-manifest:
     name: "🚀 Update K8s Manifest"
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' 
+    needs: [build, image-scan]
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     permissions:
       contents: write # Needed to push manifest changes
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GHCR_ACCESS_TOKEN }}
 
       - name: Get short SHA
         id: sha
