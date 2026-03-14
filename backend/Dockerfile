@@ -2,7 +2,10 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm ci --only=production && npm cache clean --force
+# Update npm to latest to pick up patched node-tar (CVE-2026-29786, CVE-2026-31802)
+RUN npm install -g npm@latest && \
+    npm ci --only=production && \
+    npm cache clean --force
 
 # ---- Production stage ----
 FROM node:20-alpine AS production
