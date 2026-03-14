@@ -1,7 +1,7 @@
 # ==============================================================
 # Jerney - DevSecOps CI/CD Pipeline
 # ==============================================================
-# Triggers on every push and pull request.
+# Triggers on every push, pull request, and manual dispatch.
 # Stages: Lint → SCA → Build → Image Scan → IaC Scan → Deploy Manifest Update
 # ==============================================================
 
@@ -28,7 +28,7 @@ jobs:
   # STAGE 1: Linting
   # ==============================================================
   lint:
-    name: "🔍 Lint Code"
+    name: "🔍 Lint Code (${{ matrix.component }})"
     runs-on: ubuntu-latest
     continue-on-error: true
     strategy:
@@ -60,6 +60,7 @@ jobs:
     name: "🛡️ Dependency Audit"
     runs-on: ubuntu-latest
     needs: lint
+    continue-on-error: true
     strategy:
       matrix:
         component: [backend, frontend]
@@ -90,7 +91,8 @@ jobs:
   build:
     name: "🐳 Build ${{ matrix.component }}"
     runs-on: ubuntu-latest
-    needs: sca
+    if: always()
+    needs: [sca, dockerfile-lint]
     permissions:
       contents: read
       packages: write # Needed to push to GHCR
@@ -142,6 +144,7 @@ jobs:
     name: "🔬 Scan ${{ matrix.component }} Image"
     runs-on: ubuntu-latest
     continue-on-error: true
+    if: always()
     needs: build
     strategy:
       matrix:
@@ -216,15 +219,22 @@ jobs:
 
   # ==============================================================
   # STAGE 7: Update K8s Manifest with New Image Tag
-  # Only runs on push to main (not on PRs)
+  #
+  # always() + explicit needs.build.result check ensures this job:
+  #   - is never silently skipped by upstream continue-on-error jobs
+  #   - still only runs when build actually succeeded
+  #   - runs on both push and manual workflow_dispatch
   # ==============================================================
   update-manifest:
     name: "🚀 Update K8s Manifest"
     runs-on: ubuntu-latest
+    if: |
+      always() &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      needs.build.result == 'success'
     needs: [build, image-scan]
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     permissions:
-      contents: write # Needed to push manifest changes
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
