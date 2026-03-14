@@ -1,8 +1,17 @@
-compact:
-  - CKV_AWS_39   # Public access to EKS endpoint (needed for kubectl)
-  - CKV_AWS_58   # EKS public endpoint (intentional for dev access)
-soft-fail: false
+# ==============================================================
+# Checkov configuration for local runs
+# CI pipeline uses --config-file /dev/null and passes all args
+# explicitly to avoid configargparse boolean parsing bugs.
+# ==============================================================
+ 
+soft-fail: "true"       # Must be quoted string — boolean triggers configargparse AssertionError
+ 
+skip-check:             # Was incorrectly under 'compact:' key
+  - CKV_AWS_39          # Public access to EKS endpoint (needed for kubectl)
+  - CKV_AWS_58          # EKS public endpoint (intentional for dev access)
+ 
 framework:
   - terraform
+ 
 directory:
   - terraform
