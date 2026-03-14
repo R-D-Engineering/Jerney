@@ -20,15 +20,33 @@ permissions:
 
 env:
   DOCKER_REGISTRY: ghcr.io
-  BACKEND_IMAGE: ghcr.io/${{ github.repository }}/jerney-backend
-  FRONTEND_IMAGE: ghcr.io/${{ github.repository }}/jerney-frontend
 
 jobs:
+  # ==============================================================
+  # STAGE 0: Resolve lowercase image names
+  # GHCR requires image names to be fully lowercase.
+  # github.repository can contain uppercase (e.g. "Org/Repo"),
+  # so we normalise it once here and expose it as job outputs.
+  # ==============================================================
+  setup:
+    name: "⚙️ Resolve Image Names"
+    runs-on: ubuntu-latest
+    outputs:
+      backend_image: ${{ steps.vars.outputs.backend_image }}
+      frontend_image: ${{ steps.vars.outputs.frontend_image }}
+    steps:
+      - name: Compute lowercase image names
+        id: vars
+        run: |
+          REPO=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "backend_image=ghcr.io/${REPO}/jerney-backend"   >> $GITHUB_OUTPUT
+          echo "frontend_image=ghcr.io/${REPO}/jerney-frontend" >> $GITHUB_OUTPUT
+
   # ==============================================================
   # STAGE 1: Linting
   # ==============================================================
   lint:
-    name: "🔍 Lint Code (${{ matrix.component }})"
+    name: "🔍 Lint Code"
     runs-on: ubuntu-latest
     continue-on-error: true
     strategy:
@@ -92,13 +110,17 @@ jobs:
     name: "🐳 Build ${{ matrix.component }}"
     runs-on: ubuntu-latest
     if: always()
-    needs: [sca, dockerfile-lint]
+    needs: [setup, sca, dockerfile-lint]
     permissions:
       contents: read
       packages: write # Needed to push to GHCR
     strategy:
       matrix:
-        component: [backend, frontend]
+        include:
+          - component: backend
+            image: ${{ needs.setup.outputs.backend_image }}
+          - component: frontend
+            image: ${{ needs.setup.outputs.frontend_image }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -117,7 +139,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}/jerney-${{ matrix.component }}
+          images: ${{ matrix.image }}
           tags: |
             type=sha,prefix=
             type=ref,event=branch
@@ -232,9 +254,9 @@ jobs:
       always() &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       needs.build.result == 'success'
-    needs: [build, image-scan]
+    needs: [setup, build, image-scan]
     permissions:
-      contents: write
+      contents: write # Needed to push manifest changes
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -248,6 +270,8 @@ jobs:
       - name: Update K8s manifest with new image tags
         run: |
           IMAGE_TAG=${{ steps.sha.outputs.short }}
+          BACKEND_IMAGE=${{ needs.setup.outputs.backend_image }}
+          FRONTEND_IMAGE=${{ needs.setup.outputs.frontend_image }}
 
           # Find the line number of the backend container image
           # (the image: line right after `- name: backend`)
